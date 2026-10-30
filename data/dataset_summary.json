@@ -1,0 +1,57 @@
+{
+  "features": [
+    "ret_1",
+    "mom_2",
+    "mom_3",
+    "mom_5",
+    "mom_10",
+    "mom_20",
+    "vol_5",
+    "sma_ratio_5",
+    "volume_z_5",
+    "vol_10",
+    "sma_ratio_10",
+    "volume_z_10",
+    "vol_20",
+    "sma_ratio_20",
+    "volume_z_20",
+    "macd_norm",
+    "macd_signal_norm",
+    "rsi_14",
+    "range_hl",
+    "close_position",
+    "volume_change",
+    "amihud_20",
+    "market_ret_1",
+    "market_mom_5",
+    "relative_ret_5"
+  ],
+  "markets": {
+    "CN": {
+      "stocks": 12,
+      "start": "2023-12-11",
+      "end": "2026-09-30",
+      "observations": 8172,
+      "features": 25,
+      "splits": {
+        "train": 3084,
+        "validation": 2916,
+        "test": 2172
+      },
+      "up_rate_h5": 0.506163708086785
+    },
+    "TH": {
+      "stocks": 12,
+      "start": "2023-12-11",
+      "end": "2026-09-30",
+      "observations": 8172,
+      "features": 25,
+      "splits": {
+        "train": 3084,
+        "validation": 2904,
+        "test": 2184
+      },
+      "up_rate_h5": 0.48779585798816566
+    }
+  }
+}
