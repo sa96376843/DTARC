@@ -251,8 +251,10 @@
   },
   {
     "path": "src/prepare_robustness_data.py",
-    "bytes": 2215,
-    "sha256": "130a5c5b295cf33904668ed57b668fd496cb701c6750acbec30719664c8eb7ca"
+    "bytes": 3001,
+    "sha256": "db429174cd2f1cc0a43675839618e5d2a676da82e61d5f7ce33e9dd747b053a0",
+    "original_sha256": "130a5c5b295cf33904668ed57b668fd496cb701c6750acbec30719664c8eb7ca",
+    "change": "2026-10-30: refresh primary-panel summary after source replacement; no training or evaluation algorithm changes."
   },
   {
     "path": "src/preprocess.py",
