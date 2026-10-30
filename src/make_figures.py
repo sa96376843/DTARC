@@ -13,6 +13,7 @@ from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.dates as mdates
 from cycler import cycler
 import textwrap
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA, RESULTS = ROOT / "data", ROOT / "results"
@@ -20,7 +21,7 @@ FIG = ROOT / "figures"
 FIG.mkdir(exist_ok=True)
 plt.rcParams.update({"font.size": 9, "axes.titlesize": 10, "axes.labelsize": 9,
                      "axes.spines.top": False, "axes.spines.right": False,
-                     "figure.dpi": 130, "savefig.bbox": "tight"})
+                     "figure.dpi": 130, "savefig.bbox": None})
 # User-confirmed green-purple palette; identical methods retain identical colors.
 C = {"adwinDTARC": "#5E8F6A", "adwinER": "#A987C9", "phDTARC": "#2F4F3A",
      "phER": "#A7B688", "periodicER": "#9DC499", "periodic": "#B7C5A7",
@@ -51,6 +52,10 @@ def save(fig, name):
     fig.savefig(FIG / f"{name}.pdf",bbox_inches=None)
     fig.savefig(FIG / f"{name}.png", dpi=400,bbox_inches=None)
     fig.savefig(FIG / f"{name}.tif", dpi=400,bbox_inches=None,pil_kwargs={"compression":"tiff_lzw"})
+    # Publication export: opaque RGB, not Matplotlib's default RGBA TIFF.
+    with Image.open(FIG / f"{name}.tif") as im:
+        rgb = im.convert("RGB")
+    rgb.save(FIG / f"{name}.tif", compression="tiff_lzw", dpi=(400,400))
     plt.close(fig)
     print("figure", name, flush=True)
 
