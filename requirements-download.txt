@@ -1,0 +1,3 @@
+# Only needed to refresh the legacy Chinese BaoStock audit snapshot.
+# Offline reproduction and the current single-source Sina main panel do not require it.
+baostock

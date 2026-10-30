@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+data/*.csv
+data/*.html
+data/*.js
+data/ptt_recent.json
+results/predictions*.csv
+results/tune_predictions*.csv
+results/economic_curves*.csv
+results/boundary_windows*.csv
+manuscript/
+literature/
