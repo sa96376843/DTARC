@@ -13,6 +13,23 @@ def finish(d):
     d['split']=np.select([d.date<='2024-12-31',d.date<='2025-12-31'],['train','validation'],default='test')
     return d
 
+def refresh_primary_summary():
+    """Describe the final on-disk primary panels, after source replacement."""
+    summary_path=DATA/'dataset_summary.json'
+    info=json.loads(summary_path.read_text())
+    for market in ['CN','TH']:
+        d=pd.read_csv(DATA/f'{market.lower()}_processed.csv',parse_dates=['date'])
+        info['markets'][market]={
+            'stocks':int(d.code.nunique()),
+            'start':str(d.date.min().date()),
+            'end':str(d.date.max().date()),
+            'observations':int(len(d)),
+            'features':len(info['features']),
+            'splits':{k:int(v) for k,v in d.split.value_counts().items()},
+            'up_rate_h5':float(d.y_5.mean()),
+        }
+    summary_path.write_text(json.dumps(info,indent=2))
+
 def main():
     for kind in ['qianfuquan','houfuquan']:
         raw=pd.read_csv(DATA/f'cn_raw_sina_{kind}.csv',parse_dates=['date'])
@@ -40,6 +57,7 @@ def main():
         d['y_exec5']=(d.fwd_ret_exec5>0).astype(float)
         d.loc[d.fwd_ret_exec5.isna(),'y_exec5']=np.nan
         d.to_csv(DATA/f'{market.lower()}_processed_exec.csv',index=False)
+    refresh_primary_summary()
     print('robustness datasets written')
 
 if __name__=='__main__':main()
