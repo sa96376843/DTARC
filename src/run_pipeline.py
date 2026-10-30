@@ -36,7 +36,7 @@ def experiment_stage():
         py("extended_experiments.py", "--mode", mode)
     for mode in ["adjustment", "loo", "exec", "matched", "mechanism", "protocol"]:
         py("robustness_experiments.py", "--mode", mode)
-    py("statistical_analysis.py", "--mode", "bootstrap", "--replicates", "500", "--blocks", "5,10,20")
+    py("statistical_analysis.py", "--mode", "bootstrap", "--replicates", "10000", "--blocks", "5,10,20")
     py("statistical_analysis.py", "--mode", "ablation")
     py("economic_evaluation.py", "--horizon", "5")
     py("economic_evaluation.py", "--horizon", "5", "--input", "results/predictions_execution_aligned.csv", "--suffix", "execution_aligned")
@@ -45,7 +45,9 @@ def experiment_stage():
 def artifact_stage():
     py("make_figures.py")
     py("make_plos_tables.py")
-    py("build_plos_manuscript.py")
+    # The scientific artifact stage produces empirical figures and tables only.
+    # The author-approved manuscript is a separate versioned source package.
+    # Never invoke the historical manuscript generator from this pipeline.
 
 
 def main():

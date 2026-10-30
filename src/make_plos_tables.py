@@ -43,7 +43,7 @@ def make_table(filename, title, labels, panels, note, width="-0.45in", right_wid
 def metric_row(market, method, q, runtime=None):
     row = [esc(method)] + [pm(q, m) for m in ["accuracy", "macro_f1", "mcc", "auc", "brier"]]
     if runtime is not None:
-        row += ["--" if len(runtime) == 0 else f"{runtime.updates.mean():.2f}", "--" if len(runtime) == 0 else f"{runtime.seconds.mean():.3f}"]
+        row += ["--" if len(runtime) == 0 else f"{runtime.updates.mean():.2f}", "--" if len(runtime) == 0 or runtime.seconds.isna().all() else f"{runtime.seconds.mean():.3f}"]
     return row
 
 
@@ -60,7 +60,7 @@ def main():
             "Stocks": s["stocks"],
             "Common modeling window": f"{s['start']}--{s['end']}",
             "Initial training rows": s["splits"]["train"],
-            "Validation rows": s["splits"]["validation"],
+            "Validation rows (raw)": s["splits"]["validation"],
             "Test rows": s["splits"]["test"],
             "Scored five-day rows per seed": n,
             "Observed five-day up rate": f"{s['up_rate_h5']:.3f}",
@@ -70,7 +70,7 @@ def main():
     rows_b = [
         ["Initial MLP", "25--32--16--1; ReLU; dropout 0.10"],
         ["Initial optimization", "120 epochs; Adam $10^{-3}$; weight decay $10^{-4}$"],
-        ["Online optimization", "2 epochs; Adam $3\\times10^{-4}$; weight decay $10^{-5}$"],
+        ["Online optimization", f"2 full-batch steps; Adam {cfg['online_lr']}; weight decay $10^{{-5}}$"],
         ["ADWIN $\\delta$; Page--Hinkley threshold", f"{cfg['adwin_delta']}; {cfg['ph_threshold']}"],
         ["Memory capacity; replay batch", f"{cfg['buffer']}; {cfg['replay']}"],
         ["Proximal coefficient; abrupt threshold", f"{cfg['prox']}; {cfg['abrupt_threshold']}"],
@@ -142,7 +142,7 @@ def main():
             r = rt[(rt.market == market) & (rt.method == method)]
             rows.append(metric_row(market, method, q, r))
         panels.append((f"{letter}: five-day prediction and online adaptation.", ["Method", "Accuracy", "Macro-F1", "MCC", "AUC", "Brier", "Updates", "Seconds"], rows, "lrrrrrrr"))
-    make_table("plos_tab04_primary.tex", "Primary five-day predictive performance and observed online computational cost.", ["tab:primary", "tab:main", "tab:fullmetrics", "tab:runtime"], panels, "Entries are mean $\\pm$ standard deviation over five seeds. Updates and seconds are means over seeds; initial fitting is excluded. Logistic regression has no comparable online phase. Lower Brier is better; higher values are better for the other predictive metrics.", width="-0.45in")
+    make_table("plos_tab04_primary.tex", "Primary five-day predictive performance and observed online computational cost.", ["tab:primary", "tab:main", "tab:fullmetrics", "tab:runtime"], panels, "Entries are mean $\\pm$ standard deviation over five seeds. Updates and seconds are means over seeds; initial fitting is excluded. Static time was not measured and is marked --; logistic regression has no comparable online phase. Timings cover the prediction/detection/update loop. Lower Brier is better; higher values are better for the other predictive metrics.", width="-0.45in")
 
     # Table 5: 24 primary tests with block-length sensitivity.
     boot = pd.read_csv(R / "paired_block_bootstrap_h5.csv")
@@ -161,7 +161,7 @@ def main():
                 rows.append([market, esc(comp), metric.upper() if metric != "brier" else "Brier", f"{q.mean_difference:.5f}", intervals[0], f"{q.holm_p:.4f}", intervals[1], intervals[2]])
     make_table("plos_tab05_inference.tex", "Paired moving-block inference for DTARC and sensitivity to block length.", ["tab:inference", "tab:bootstrap", "tab:block"], [
         ("Prespecified primary comparisons; effects are DTARC minus the named comparator.", ["Market", "Comparator", "Metric", "Difference", "95\\% CI (5 d)", "Holm $p$", "95\\% CI (10 d)", "95\\% CI (20 d)"], rows, "lllrrrrr"),
-    ], "Each interval uses 500 date-level paired moving-block bootstrap replicates, preserving same-date stock cross-sections and five-seed pairing. Holm correction covers 24 primary tests. For Brier, negative differences favor DTARC; for other metrics, positive differences favor DTARC.", width="-0.45in")
+    ], "Each interval uses 10,000 date-level paired moving-block bootstrap replicates. Stocks on a date and methods within a seed remain paired; date blocks are drawn independently across seeds. Holm correction covers 24 primary tests. For Brier, negative differences favor DTARC; for other metrics, positive differences favor DTARC.", width="-0.45in")
 
     # Table 6: matched replay, execution, adjustment, context, and horizon.
     panels = []
@@ -202,7 +202,7 @@ def main():
             q = h1[(h1.market == market) & (h1.method == method)]
             rows.append([market, esc(method), num(q.mcc.mean()), num(q.auc.mean()), num(q.brier.mean())])
     panels.append(("One-day horizon results.", ["Market", "Method", "MCC", "AUC", "Brier"], rows, "llrrr"))
-    make_table("plos_tab06_robustness.tex", "Robustness across replay controls, execution alignment, price adjustment, market context, and prediction horizon.", ["tab:robustness", "tab:matched", "tab:exec", "tab:datarob", "tab:h1"], panels, "All entries are five-seed means. No test-set result in this table was used to revise the frozen configuration. The one-day panel includes all principal baselines; other panels emphasize the controls needed to isolate the relevant protocol factor.", width="-0.45in", size=r"\scriptsize", stretch="1.03")
+    make_table("plos_tab06_robustness.tex", "Robustness across replay controls, execution alignment, price adjustment, market context, and prediction horizon.", ["tab:robustness", "tab:matched", "tab:exec", "tab:datarob", "tab:h1"], panels, "All entries are five-seed means. No test-set result in this table was used to revise the frozen configuration. The one-day panel includes all principal baselines; other panels emphasize the controls for the specified protocol factor; their endogenous trigger schedules can differ.", width="-0.45in", size=r"\scriptsize", stretch="1.03")
 
     # Table 7: component ablation and mechanism diagnostics.
     ab = pd.read_csv(R / "metrics_ablation_h5.csv")
@@ -257,9 +257,9 @@ def main():
                 rows.append([market, esc(method), f"{100*q.annual_return.mean():.2f}\\%", f"{100*q.annual_excess_return.mean():.2f}\\%", f"{q.sharpe.mean():.3f}", f"{q.information_ratio.mean():.3f}" if method != "equal_weight" else "--", f"{q.market_beta.mean():.3f}", f"{100*q.max_drawdown.mean():.2f}\\%"])
             if style == "long_short":
                 q = bh[(bh.market == market) & (bh.cost_bps == 10)]
-                rows.append([market, r"buy\_hold", f"{100*q.annual_return.mean():.2f}\\%", "--", f"{q.sharpe.mean():.3f}", "--", "1.000", f"{100*q.max_drawdown.mean():.2f}\\%"])
+                rows.append([market, r"buy\_hold", f"{100*q.annual_return.mean():.2f}\\%", "--", f"{q.sharpe.mean():.3f}", "--", "--", f"{100*q.max_drawdown.mean():.2f}\\%"])
         panels.append((heading, ["Market", "Method", "Return", "Excess", "Sharpe", "IR", "Beta", "Max DD"], rows, "llrrrrrr"))
-    make_table("plos_tab09_economic.tex", "Annualized economic outcomes after 10 bps, including market benchmarks and both portfolio styles.", ["tab:economic", "tab:longonly"], panels, "Returns are annualized from non-overlapping five-day periods with next-close execution. Excess return and information ratio (IR) use the same-cost equal-weight universe benchmark. Buy-and-hold uses fixed initial equal shares and therefore has no same-cost excess-return row. Maximum drawdown (Max DD) is reported as a positive magnitude.", width="-0.45in")
+    make_table("plos_tab09_economic.tex", "Annualized economic outcomes after 10 bps, including market benchmarks and both portfolio styles.", ["tab:economic", "tab:longonly"], panels, "Strategy returns are annualized from non-overlapping five-day periods with next-close execution; buy-and-hold uses actual daily holding intervals and includes its entry fee. Excess return and information ratio (IR) use the same-cost equal-weight universe benchmark. Buy-and-hold starts with equal capital weights and holds fixed share quantities; excess, IR and beta are not reported. Maximum drawdown (Max DD) is reported as a positive magnitude.", width="-0.45in")
 
     # Table 10: reproducibility mapping.
     artifacts = [
@@ -272,12 +272,12 @@ def main():
         ("Paired inference and block sensitivity", r"results/paired\_block\_bootstrap\_*.csv", r"src/statistical\_analysis.py"),
         ("Portfolio outcomes and benchmarks", r"results/economic\_*.csv", r"src/economic\_evaluation.py"),
         ("Figures and source tables", r"figures/; manuscript/plos\_tables/", r"src/make\_figures.py; src/make\_plos\_tables.py"),
-        ("Bibliographic metadata", r"literature/crossref\_verified.json", r"src/make\_bibliography.py"),
+        ("Audited bibliography (author package)", r"source/references.bib", r"audit/citations/"),
     ]
     rows = [[a, f"\\texttt{{{b}}}", f"\\texttt{{{c}}}"] for a, b, c in artifacts]
     make_table("plos_tab10_artifacts.tex", "Mapping from scientific claims to executable artifacts.", ["tab:artifacts"], [
         ("Claim-to-artifact reproducibility map.", ["Claim or output", "Source artifact", "Generation script"], rows, "p{1.75in}p{2.65in}p{2.45in}"),
-    ], "The package records package versions, execution order, source URLs, and SHA-256 hashes. Raw downloads are network-dependent; all reported outputs can be regenerated from the included processed panels. No consolidated table is manually edited.", width="-0.45in")
+    ], "The package records package versions, execution order, source URLs, and SHA-256 hashes. The map describes local computational artifacts, not the scope of the public subset. Raw downloads are network-dependent; access and snapshot boundaries are documented separately.", width="-0.45in")
 
 
 if __name__ == "__main__":

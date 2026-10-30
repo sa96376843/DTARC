@@ -32,6 +32,33 @@ def holm(p):
         running=max(running,(m-rank)*p[idx]);adj[idx]=min(1,running)
     return adj
 
+
+def weighted_metrics_by_date(y, p, date_pos, counts, chunk=128):
+    """Exactly the metrics of repeated whole dates, without materializing rows.
+
+    Weighted AUC groups tied scores before accumulating concordant pairs.
+    No approximation, new RNG, or change to the resampling estimand is used.
+    """
+    y=np.asarray(y,int);p=np.asarray(p,float);date_pos=np.asarray(date_pos,int)
+    yh=(p>=.5).astype(int);n_dates=counts.shape[1]
+    def by_date(v): return np.bincount(date_pos, weights=v, minlength=n_dates)
+    tp=counts@by_date((y==1)&(yh==1));tn=counts@by_date((y==0)&(yh==0))
+    fp=counts@by_date((y==0)&(yh==1));fn=counts@by_date((y==1)&(yh==0))
+    total=tp+tn+fp+fn;den=np.sqrt((tp+fp)*(tp+fn)*(tn+fp)*(tn+fn))
+    mcc=np.divide(tp*tn-fp*fn,den,out=np.zeros_like(den),where=den>0)
+    result={'mcc':mcc,'accuracy':(tp+tn)/total,'brier':(counts@by_date((y-p)**2))/total}
+    order=np.argsort(p,kind='stable');score=p[order];ys=y[order];ds=date_pos[order]
+    starts=np.r_[0,np.flatnonzero(np.diff(score))+1];auc=[]
+    for start in range(0,len(counts),chunk):
+        weights=counts[start:start+chunk,ds]
+        positives=np.add.reduceat(weights*ys,starts,axis=1)
+        negatives=np.add.reduceat(weights*(1-ys),starts,axis=1)
+        numerator=(positives*(np.cumsum(negatives,axis=1)-.5*negatives)).sum(axis=1)
+        denominator=positives.sum(axis=1)*negatives.sum(axis=1)
+        auc.extend(np.divide(numerator,denominator,out=np.full_like(numerator,np.nan),where=denominator>0))
+    result['auc']=np.asarray(auc)
+    return result
+
 def bootstrap(args):
     pred=pd.read_csv(OUT/args.input,parse_dates=['date']);rows=[]
     for block in args.blocks:
@@ -49,14 +76,20 @@ def bootstrap(args):
                     a=metrics(d.y.values,d[methods[0]].values);b=metrics(d.y.values,d[methods[1]].values)
                     observed.append({m:a[m]-b[m] for m in a})
                 obs=pd.DataFrame(observed).mean().to_dict();boot={m:[] for m in obs}
-                for _ in range(args.replicates):
-                    per={m:[] for m in obs}
-                    for s,d in paired.items():
+                # Draw in the original replicate -> seed order. Independent
+                # seed-specific date blocks preserve the original estimand.
+                counts={s:np.zeros((args.replicates,len(dates[s])),float) for s in paired}
+                for replicate in range(args.replicates):
+                    for s in paired:
                         sampled=blocks(len(dates[s]),block,rng)
-                        idx=np.concatenate([lookups[s][i] for i in sampled])
-                        y=d.y.values[idx];a=metrics(y,d[methods[0]].values[idx]);b=metrics(y,d[methods[1]].values[idx])
-                        for m in obs:per[m].append(a[m]-b[m])
-                    for m in obs:boot[m].append(np.nanmean(per[m]))
+                        counts[s][replicate]=np.bincount(sampled,minlength=len(dates[s]))
+                differences={m:[] for m in obs}
+                for s,d in paired.items():
+                    pos=d.date.map({x:i for i,x in enumerate(dates[s])}).values
+                    a=weighted_metrics_by_date(d.y.values,d[methods[0]].values,pos,counts[s])
+                    b=weighted_metrics_by_date(d.y.values,d[methods[1]].values,pos,counts[s])
+                    for m in obs: differences[m].append(a[m]-b[m])
+                boot={m:np.nanmean(values,axis=0) for m,values in differences.items()}
                 for metric,vals in boot.items():
                     vals=np.asarray(vals);lo,hi=np.nanpercentile(vals,[2.5,97.5])
                     p=min(1.,2*min((np.sum(vals<=0)+1)/(len(vals)+1),(np.sum(vals>=0)+1)/(len(vals)+1)))
@@ -87,7 +120,7 @@ def ablation_ci():
 
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--mode',choices=['bootstrap','ablation'],required=True)
-    ap.add_argument('--replicates',type=int,default=500);ap.add_argument('--blocks',type=lambda s:list(map(int,s.split(','))),default=[5,10,20])
+    ap.add_argument('--replicates',type=int,default=10000);ap.add_argument('--blocks',type=lambda s:list(map(int,s.split(','))),default=[5,10,20])
     ap.add_argument('--seed',type=int,default=20261028);ap.add_argument('--input',default='predictions_h5.csv')
     ap.add_argument('--output',default='paired_block_bootstrap_sensitivity_h5.csv');args=ap.parse_args()
     bootstrap(args) if args.mode=='bootstrap' else ablation_ci()

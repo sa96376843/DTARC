@@ -39,12 +39,23 @@ def one_run(g,cost_bps=10,topk=3,style='long_short'):
     r=pd.DataFrame(records);return r,summarize(r)
 
 def buy_hold(panel,formation_dates,cost_bps):
-    dates=np.sort(panel.date.unique());first=formation_dates[0];last=formation_dates[-1]
+    dates=np.sort(panel.date.unique());first=pd.Timestamp(formation_dates[0]).to_datetime64();last=pd.Timestamp(formation_dates[-1]).to_datetime64()
     entry=dates[np.searchsorted(dates,first,side='right')];exit=dates[min(np.searchsorted(dates,last)+6,len(dates)-1)]
     p=panel[(panel.date>=entry)&(panel.date<=exit)].pivot(index='date',columns='code',values='close').ffill().dropna(axis=1)
     w=np.full(p.shape[1],1/p.shape[1]);wealth=(1-cost_bps/10000)*(p/p.iloc[0]).mul(w,axis=1).sum(axis=1)
-    ret=wealth.pct_change().fillna(0);curve=pd.DataFrame({'date':wealth.index,'net_return':ret.values,'gross_return':ret.values,'turnover':0.})
-    summary=summarize(curve,252);summary['average_turnover']=1/len(curve);summary['total_return']=wealth.iloc[-1]-1
+    # Entry cost is a time-zero cash outflow. Keep it in wealth and drawdown,
+    # but annualize over actual close-to-close holding intervals (not n+1).
+    gross=wealth.pct_change();ret=gross.copy();ret.iloc[0]=-cost_bps/10000
+    curve=pd.DataFrame({'date':wealth.index,'net_return':ret.values,'gross_return':gross.fillna(0).values,'turnover':0.})
+    curve.loc[0,'turnover']=1.
+    if len(curve)<2: raise ValueError('Buy-and-hold requires at least one holding interval')
+    daily=curve.iloc[1:].copy()
+    daily.loc[daily.index[0],'net_return']=(1-cost_bps/10000)*(1+daily.iloc[0].net_return)-1
+    daily.loc[daily.index[0],'turnover']=1.
+    summary=summarize(daily,252)
+    summary['max_drawdown']=max_drawdown(curve.net_return)
+    if not np.isclose(summary['total_return'],wealth.iloc[-1]-1,rtol=1e-12,atol=1e-12):
+        raise AssertionError('Buy-and-hold cost and wealth mismatch')
     return curve,summary
 
 def main():

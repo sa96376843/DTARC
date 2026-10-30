@@ -4,7 +4,7 @@ All predictions are made before model updates. For an h-day target, a sample is
 eligible for training only after its h-day forward return is observable.
 """
 from pathlib import Path
-import argparse, copy, json, math, time, warnings
+import argparse, copy, hashlib, json, math, time, uuid, warnings
 import numpy as np
 import pandas as pd
 import torch
@@ -84,6 +84,8 @@ def initial_fit(train, features, h, seed, epochs=120, purge_extra=0, purge_bound
     seed_all(seed)
     if purge_boundary:
         train = purge_label_boundary(train, h + purge_extra)
+    if train.empty:
+        raise ValueError("Initial training set is empty after purging")
     med = train[features].median().fillna(0)
     X0 = train[features].fillna(med).fillna(0).values
     scaler = StandardScaler().fit(X0)
@@ -98,6 +100,18 @@ def initial_fit(train, features, h, seed, epochs=120, purge_extra=0, purge_bound
         perm = torch.randperm(len(Xt), generator=g)
         for idx in perm.split(128):
             opt.zero_grad(); loss = loss_fn(model(Xt[idx]), yt[idx]); loss.backward(); opt.step()
+    checkpoint_dir = ROOT / "checkpoints"
+    checkpoint_dir.mkdir(exist_ok=True)
+    fingerprint = hashlib.sha256(pd.util.hash_pandas_object(train[["date", "code", *features, f"y_{h}"]], index=False).values.tobytes()).hexdigest()
+    market = str(train.market.iloc[0]) if "market" in train else "unknown"
+    checkpoint = checkpoint_dir / f"initial_{market}_h{h}_seed{seed}_{fingerprint[:16]}_e{epochs}.pt"
+    temporary = checkpoint.with_name(checkpoint.stem + '.' + uuid.uuid4().hex + '.tmp')
+    torch.save({"state_dict": model.state_dict(), "features": features, "median": med.to_dict(),
+                "scaler_mean": scaler.mean_.tolist(), "scaler_scale": scaler.scale_.tolist(),
+                "pos_weight": pos_weight.tolist(), "seed": seed, "h": h, "epochs": epochs,
+                "training_fingerprint": fingerprint, "torch_version": str(torch.__version__),
+                "parameters_sha256": hashlib.sha256(b''.join(p.detach().numpy().tobytes() for p in model.parameters())).hexdigest()}, temporary)
+    temporary.replace(checkpoint)
     return {"model": model, "scaler": scaler, "median": med, "pos_weight": pos_weight}
 
 
@@ -107,6 +121,8 @@ def transform(d, base, features):
 
 
 def predict(model, X, batch=4096):
+    if len(X) == 0:
+        return np.empty(0, dtype=np.float32)
     model.eval(); out = []
     with torch.no_grad():
         for i in range(0, len(X), batch):
@@ -115,6 +131,7 @@ def predict(model, X, batch=4096):
 
 
 def farthest_select(X, candidates, n, rng):
+    if n <= 0: return []
     candidates = list(dict.fromkeys(map(int, candidates)))
     if len(candidates) <= n: return candidates
     if not candidates: return []
@@ -131,9 +148,21 @@ def farthest_select(X, candidates, n, rng):
     return chosen
 
 
-def stratified(candidates, labels, n, pos_rate, rng):
+def stratified(candidates, labels, n, pos_rate, rng, replace=True):
     candidates = np.array(list(dict.fromkeys(map(int, candidates))), dtype=int)
     if n <= 0 or len(candidates) == 0: return []
+    if not replace:
+        n = min(n, len(candidates))
+        desired = int(round(n * pos_rate))
+        chosen = []
+        for val, k in [(1, desired), (0, n-desired)]:
+            pool = candidates[labels[candidates] == val]
+            if len(pool) and k:
+                chosen.extend(rng.choice(pool, size=min(k, len(pool)), replace=False).tolist())
+        remaining = np.array([i for i in candidates if i not in chosen], dtype=int)
+        if len(chosen) < n:
+            chosen.extend(rng.choice(remaining, size=n-len(chosen), replace=False).tolist())
+        return chosen
     npos = int(round(n*pos_rate)); chosen = []
     for val, k in [(1, npos), (0, n-npos)]:
         pool = candidates[labels[candidates] == val]
@@ -174,9 +203,20 @@ def dtarc_sample(memory, anchor, X, y, latest_y, n, severity, threshold, rng, va
         selected.extend(ids)
     selected = list(dict.fromkeys(selected))
     if len(selected) < n:
-        fill = stratified([i for i in memory if i not in selected], y, n-len(selected), pos_rate, rng)
+        fill = stratified([i for i in memory if i not in selected], y, n-len(selected), pos_rate, rng, replace=False)
         selected.extend(fill)
     return selected[:n]
+
+
+def eligible_split(d, split, h):
+    """Validation scores may use only labels observable by 2025-12-31."""
+    out = d[d.split == split].dropna(subset=[f"y_{h}"]).copy()
+    if split == "validation":
+        available = f"label_available_{h}"
+        if available not in out:
+            raise ValueError("Regenerate panels with label-availability dates")
+        out = out[pd.to_datetime(out[available]) <= pd.Timestamp("2025-12-31")]
+    return out
 
 
 def online_update(model, X, y, latest_ids, replay_ids, base_state, pos_weight, lr, prox, epochs=2):
@@ -197,11 +237,16 @@ def run_online(method, d, base, features, h, seed, cfg, split, variant="full", a
     seed_all(seed+1000)
     rng = np.random.default_rng(seed+1000)
     model = copy.deepcopy(base["model"])
-    work = d[d.split.isin(["train", split])].copy().sort_values(["date", "code"]).reset_index(drop=True)
-    work = work.dropna(subset=[f"y_{h}"])
+    work = pd.concat([d[d.split == "train"], eligible_split(d, split, h)], ignore_index=True)
+    work = work.dropna(subset=[f"y_{h}"]).sort_values(["date", "code"]).reset_index(drop=True)
     X = transform(work, base, features); y = work[f"y_{h}"].values.astype(np.int64)
     train_ids = np.where(work.split.values == "train")[0]
     test_ids = np.where(work.split.values == split)[0]
+    if not len(test_ids):
+        raise ValueError(f"No eligible observations for {split}, h={h}")
+    available = pd.to_datetime(work[f"label_available_{h}"])
+    first_date = pd.Timestamp(work.loc[test_ids, "date"].min())
+    train_ids = np.array([i for i in train_ids if available.iloc[i] < first_date], dtype=int)
     init_n = min(cfg["buffer"], len(train_ids))
     memory = rng.choice(train_ids, size=init_n, replace=False).tolist()
     memory.sort(); anchor = set(memory[:min(128, len(memory)//4)])
@@ -211,11 +256,13 @@ def run_online(method, d, base, features, h, seed, cfg, split, variant="full", a
     delay = max(1, int(math.ceil(h/5))) if delay_batches is None else int(delay_batches)
     batches = [test_dates[i:i+5] for i in range(0, len(test_dates), 5)]
     pending, records, events = [], [], []
+    saved_probs = np.full(len(work), np.nan)
     start = time.perf_counter(); update_count = 0
     for step, dates in enumerate(batches):
         ids = np.where(work.date.isin(dates).values & (work.split.values == split))[0]
         if not len(ids): continue
         probs = predict(model, X[ids])
+        saved_probs[ids] = probs
         for i,p in zip(ids, probs):
             records.append((work.at[i,"date"], work.at[i,"code"], int(y[i]), float(p), float(work.at[i,f"fwd_ret_{h}"])))
         if allow_premature:
@@ -225,13 +272,25 @@ def run_online(method, d, base, features, h, seed, cfg, split, variant="full", a
         else:
             matured = pending[0] if len(pending) >= delay else []
         if len(pending) >= delay: pending = pending[1:]
+        if not allow_premature:
+            ready = [i for i in matured if available.iloc[i] <= pd.Timestamp(dates[-1])]
+            not_ready = [i for i in matured if available.iloc[i] > pd.Timestamp(dates[-1])]
+            if not_ready:
+                if pending: pending[0] = not_ready + pending[0]
+                else: pending.append(not_ready)
+            matured = ready
         drift = None
+        detection_count = 0
         if len(matured):
-            pm = predict(model, X[matured]); errors = (pm >= .5).astype(int) != y[matured]
+            pm = saved_probs[matured]
+            if not np.isfinite(pm).all(): raise AssertionError("Matured sample lacks its original prediction")
+            errors = (pm >= .5).astype(int) != y[matured]
             if detector:
                 for e in errors:
                     hit = detector.update(float(e))
-                    if hit is not None: drift = hit
+                    if hit is not None:
+                        drift = hit
+                        detection_count += 1
         should_update = len(matured) > 0 and (method in ["periodic", "periodicER"] or drift is not None)
         replay_ids = []
         if should_update:
@@ -252,7 +311,9 @@ def run_online(method, d, base, features, h, seed, cfg, split, variant="full", a
             if drift:
                 events.append({"date": str(pd.Timestamp(dates[-1])), "severity": drift["severity"],
                                "type": "abrupt" if drift["severity"] >= cfg["abrupt_threshold"] else "gradual",
-                               "detector": detector_name, "update": update_count})
+                               "detector": detector_name, "update": update_count,
+                               "detections_in_batch": detection_count,
+                               "replay_size": len(replay_ids), "replay_unique": len(set(replay_ids))})
         if len(matured):
             for i in matured:
                 if len(memory) >= cfg["buffer"]:
@@ -267,16 +328,16 @@ def run_online(method, d, base, features, h, seed, cfg, split, variant="full", a
 
 
 def static_predictions(method, d, base, features, h, seed, split):
-    test = d[(d.split == split)].dropna(subset=[f"y_{h}"]).copy().sort_values(["date","code"])
+    test = eligible_split(d, split, h).sort_values(["date","code"])
     X = transform(test, base, features); p = predict(base["model"], X)
     out = test[["date","code",f"y_{h}",f"fwd_ret_{h}"]].rename(columns={f"y_{h}":"y",f"fwd_ret_{h}":"fwd_ret"})
     out["p"] = p; out["method"] = method; out["market"] = d.market.iloc[0]; out["seed"] = seed; out["split"] = split; out["h"] = h
-    return out, pd.DataFrame(), {"updates":0,"seconds":0.,"final_memory":0}
+    return out, pd.DataFrame(), {"updates":0,"seconds":np.nan,"final_memory":0}
 
 
 def logistic_predictions(d, features, h, seed, split):
     train = purge_label_boundary(d[d.split == "train"].dropna(subset=[f"y_{h}"]), h)
-    test = d[d.split == split].dropna(subset=[f"y_{h}"]).copy()
+    test = eligible_split(d, split, h)
     med = train[features].median().fillna(0); scaler = StandardScaler().fit(train[features].fillna(med).fillna(0))
     X = scaler.transform(train[features].fillna(med).fillna(0)); Xt = scaler.transform(test[features].fillna(med).fillna(0))
     clf = LogisticRegression(C=.2, max_iter=2000, class_weight="balanced", random_state=seed).fit(X, train[f"y_{h}"])

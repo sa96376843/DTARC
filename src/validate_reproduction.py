@@ -114,11 +114,11 @@ def main():
     primary = check_primary_predictions()
     pdf_figures = sorted((ROOT / "figures").glob("fig*.pdf"))
     png_figures = sorted((ROOT / "figures").glob("fig*.png"))
-    if len(pdf_figures) != 16 or len(png_figures) != 16:
-        raise AssertionError(f"Expected 16 PDF and 16 PNG figures, found {len(pdf_figures)} and {len(png_figures)}")
+    if len(pdf_figures) != 15 or len(png_figures) != 15:
+        raise AssertionError(f"Expected 15 empirical PDF and PNG figures, found {len(pdf_figures)} and {len(png_figures)}")
     source_files = sorted((ROOT / "src").glob("*.py"))
     for path in source_files:
-        compile(path.read_text(), str(path), "exec")
+        compile(path.read_text(encoding="utf-8"), str(path), "exec")
     report = {
         "status": "PASS", "required_core_files_checked": checked_files,
         "python_files_syntax_checked": len(source_files), "panels": panels,

@@ -35,15 +35,29 @@ def per_stock(g):
     g["close_position"] = (c - g["low"]) / (g["high"] - g["low"] + 1e-12)
     g["volume_change"] = np.log(v).diff()
     g["amihud_20"] = (ret.abs() / (g["amount"] if "amount" in g else c*v)).rolling(20).mean()
-    # Cross-sectional, same-day context is known at prediction time.
-    g["market_ret_1"] = ret.groupby(g["date"]).transform("mean")
-    g["market_mom_5"] = g["mom_5"].groupby(g["date"]).transform("mean")
-    g["relative_ret_5"] = g["mom_5"] - g["market_mom_5"]
     for h in [1, 5]:
+        g[f"label_available_{h}"] = g["date"].shift(-h)
         g[f"fwd_ret_{h}"] = c.shift(-h) / c - 1
         g[f"y_{h}"] = (g[f"fwd_ret_{h}"] > 0).astype(float)
         g.loc[g[f"fwd_ret_{h}"].isna(), f"y_{h}"] = np.nan
     return g
+
+
+def add_market_context(d, leave_one_out=False):
+    """Same-close cross-section, computed only after concatenating securities."""
+    d = d.copy()
+    if d.duplicated(["date", "code"]).any():
+        raise ValueError("Market context requires one row per date/security")
+    for own, out in [("ret_1", "market_ret_1"), ("mom_5", "market_mom_5")]:
+        grouped = d.groupby("date")[own]
+        if leave_one_out:
+            count = grouped.transform("count") - d[own].notna().astype(int)
+            total = grouped.transform("sum") - d[own].fillna(0)
+            d[out] = total / count.replace(0, np.nan)
+        else:
+            d[out] = grouped.transform("mean")
+    d["relative_ret_5"] = d["mom_5"] - d["market_mom_5"]
+    return d
 
 
 def main():
@@ -55,8 +69,9 @@ def main():
         for col in ["open", "high", "low", "close", "volume", "amount"]:
             if col in raw:
                 raw[col] = pd.to_numeric(raw[col], errors="coerce")
-        raw["volume"] = raw.groupby("code")["volume"].transform(lambda x: x.ffill().bfill())
-        d = pd.concat([per_stock(g) for _, g in raw.groupby("code")], ignore_index=True)
+        raw = raw.sort_values(["code", "date"])
+        raw["volume"] = raw.groupby("code")["volume"].ffill()
+        d = add_market_context(pd.concat([per_stock(g) for _, g in raw.groupby("code")], ignore_index=True))
         if "code" not in d:
             raise RuntimeError("Missing security identifier")
         d["market"] = market
