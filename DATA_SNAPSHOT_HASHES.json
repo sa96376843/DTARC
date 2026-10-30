@@ -1,0 +1,62 @@
+[
+  {
+    "path": "data/cn_processed.csv",
+    "bytes": 6125426,
+    "sha256": "f784f80faae670b174a615abc87eae0632cc89b18a00451d404b3bad61b80c60"
+  },
+  {
+    "path": "data/cn_processed_exec.csv",
+    "bytes": 6329164,
+    "sha256": "212887097c20e0a76e6499da6daf9c00af2b46f1b805050f6882eeba83004c6e"
+  },
+  {
+    "path": "data/cn_processed_loo.csv",
+    "bytes": 6125327,
+    "sha256": "bf25c1266beec942bcaa7e63620b26f61b7b0dd3601ed3c2593e883d5ae775f2"
+  },
+  {
+    "path": "data/cn_processed_sina_houfuquan.csv",
+    "bytes": 6103793,
+    "sha256": "d396483335c2f50afe0010c9e76db5d63196dd91b6a57a891734f21f3b62b9d3"
+  },
+  {
+    "path": "data/cn_processed_sina_qianfuquan.csv",
+    "bytes": 6125426,
+    "sha256": "f784f80faae670b174a615abc87eae0632cc89b18a00451d404b3bad61b80c60"
+  },
+  {
+    "path": "data/cn_raw_baostock.csv",
+    "bytes": 3528575,
+    "sha256": "530e6cd3e87fe55f036c4354fd18539c5ae5138850aae6c0c698b822e6683cb3"
+  },
+  {
+    "path": "data/cn_raw_sina_houfuquan.csv",
+    "bytes": 1212007,
+    "sha256": "2431d1f47cc646d73ca65cd635ddfe057549f7c86b11a0443fe8f0a7617a3070"
+  },
+  {
+    "path": "data/cn_raw_sina_qianfuquan.csv",
+    "bytes": 1237744,
+    "sha256": "b013d12751174b55ffe9b06bf9bf27e0a75b9c3587ada0d2b7a12325c40cc5c5"
+  },
+  {
+    "path": "data/th_processed.csv",
+    "bytes": 5163585,
+    "sha256": "efb5195a267d1fb68f3a23fafa4f575d90f542d803539ac991ad3d6c28106e84"
+  },
+  {
+    "path": "data/th_processed_exec.csv",
+    "bytes": 5355677,
+    "sha256": "f4124014f28f47dcd3563766b49334b244240a9381e03752188650115ce807f9"
+  },
+  {
+    "path": "data/th_processed_loo.csv",
+    "bytes": 5163206,
+    "sha256": "554b1ef228d0951f2eb4c554f9cea93c23479c7a655ba7795a5b13d44b3defe2"
+  },
+  {
+    "path": "data/th_raw_siamchart.csv",
+    "bytes": 397358,
+    "sha256": "dd84c1b0a13f366831fbc55cd68bb3c83a6803b442d778c85f66a9fb53d5cc79"
+  }
+]

@@ -1,0 +1,146 @@
+{
+  "status": "PASS",
+  "prediction_sets": {
+    "predictions_ablation_h5.csv": {
+      "rows": 105900,
+      "metric_rows": 50,
+      "max_abs_errors": {
+        "n": 0.0,
+        "accuracy": 0.0,
+        "macro_f1": 5.551115123125783e-17,
+        "mcc": 9.020562075079397e-17,
+        "auc": 5.551115123125783e-17,
+        "brier": 1.1102230246251565e-16
+      }
+    },
+    "predictions_execution_aligned.csv": {
+      "rows": 84240,
+      "metric_rows": 40,
+      "max_abs_errors": {
+        "n": 0.0,
+        "accuracy": 5.551115123125783e-17,
+        "macro_f1": 5.551115123125783e-17,
+        "mcc": 9.71445146547012e-17,
+        "auc": 5.551115123125783e-17,
+        "brier": 1.1102230246251565e-16
+      }
+    },
+    "predictions_h1.csv": {
+      "rows": 173280,
+      "metric_rows": 80,
+      "max_abs_errors": {
+        "n": 0.0,
+        "accuracy": 5.551115123125783e-17,
+        "macro_f1": 5.551115123125783e-17,
+        "mcc": 9.71445146547012e-17,
+        "auc": 5.551115123125783e-17,
+        "brier": 1.1102230246251565e-16
+      }
+    },
+    "predictions_h5.csv": {
+      "rows": 169440,
+      "metric_rows": 80,
+      "max_abs_errors": {
+        "n": 0.0,
+        "accuracy": 0.0,
+        "macro_f1": 5.551115123125783e-17,
+        "mcc": 9.71445146547012e-17,
+        "auc": 5.551115123125783e-17,
+        "brier": 5.551115123125783e-17
+      }
+    },
+    "predictions_loo.csv": {
+      "rows": 63540,
+      "metric_rows": 30,
+      "max_abs_errors": {
+        "n": 0.0,
+        "accuracy": 0.0,
+        "macro_f1": 5.551115123125783e-17,
+        "mcc": 9.71445146547012e-17,
+        "auc": 5.551115123125783e-17,
+        "brier": 1.1102230246251565e-16
+      }
+    },
+    "predictions_matched_replay.csv": {
+      "rows": 42360,
+      "metric_rows": 20,
+      "max_abs_errors": {
+        "n": 0.0,
+        "accuracy": 0.0,
+        "macro_f1": 5.551115123125783e-17,
+        "mcc": 7.979727989493313e-17,
+        "auc": 5.551115123125783e-17,
+        "brier": 5.551115123125783e-17
+      }
+    },
+    "predictions_mechanism_h5.csv": {
+      "rows": 232980,
+      "metric_rows": 110,
+      "max_abs_errors": {
+        "n": 0.0,
+        "accuracy": 0.0,
+        "macro_f1": 5.551115123125783e-17,
+        "mcc": 9.71445146547012e-17,
+        "auc": 5.551115123125783e-17,
+        "brier": 5.551115123125783e-17
+      }
+    },
+    "predictions_protocol_degradation.csv": {
+      "rows": 9809,
+      "metric_rows": 4,
+      "max_abs_errors": {
+        "n": 0.0,
+        "accuracy": 0.0,
+        "macro_f1": 0.0,
+        "mcc": 5.551115123125783e-17,
+        "auc": 0.0,
+        "brier": 0.0
+      }
+    },
+    "predictions_sensitivity_h5.csv": {
+      "rows": 254160,
+      "metric_rows": 120,
+      "max_abs_errors": {
+        "n": 0.0,
+        "accuracy": 0.0,
+        "macro_f1": 5.551115123125783e-17,
+        "mcc": 9.71445146547012e-17,
+        "auc": 5.551115123125783e-17,
+        "brier": 1.1102230246251565e-16
+      }
+    },
+    "predictions_sina_houfuquan.csv": {
+      "rows": 42240,
+      "metric_rows": 20,
+      "max_abs_errors": {
+        "n": 0.0,
+        "accuracy": 0.0,
+        "macro_f1": 0.0,
+        "mcc": 8.326672684688674e-17,
+        "auc": 0.0,
+        "brier": 5.551115123125783e-17
+      }
+    },
+    "predictions_sina_qianfuquan.csv": {
+      "rows": 42240,
+      "metric_rows": 20,
+      "max_abs_errors": {
+        "n": 0.0,
+        "accuracy": 0.0,
+        "macro_f1": 0.0,
+        "mcc": 9.020562075079397e-17,
+        "auc": 0.0,
+        "brier": 5.551115123125783e-17
+      }
+    }
+  },
+  "primary_pairing": "all methods and seeds share exact code-date labels within each market",
+  "unique_DTARC_replay_updates": 191,
+  "validation_candidates": 40,
+  "primary_independent_repeat": {
+    "prediction_sha256": "742c19b3a7148573102a47aef0c4572d4ff130e43b8570c5c5397286a71556a0",
+    "metrics_sha256": "5c78ccad1683417b7f20ed09c087a2e6aeb79a0f8cf88b76f85ef09aff61ca22",
+    "drift_events_sha256": "bac0f98e419e6a6213403833df26f30b1d176c46b4f259ef829544207c571a97",
+    "result": "byte-identical in the verified local environment; elapsed times excluded"
+  }
+}

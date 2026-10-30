@@ -1,18 +1,14 @@
-Recorded execution environment for the frozen study artifacts
-
-Python: 3.12.12
-Operating system: Linux x86_64
-numpy: 2.2.5
-pandas: 2.3.2
-scipy: 1.16.2
-scikit-learn: 1.7.2
-torch: 2.8.0+cu128
-matplotlib: 3.10.3
-requests: 2.32.3
-Model execution: CPU tensors; torch threads fixed to 1 in src/experiment.py
-Document compiler: Tectonic (only required for rebuilding the PDF)
-
-The +cu128 local build label records the original installed PyTorch distribution;
-the experiment code itself does not select a CUDA device. Numerical reproduction
-can vary in the final floating-point digits across library and hardware versions.
-Runtime measurements are environment-dependent.
+Corrected DTARC numerical version, 2026-10-31
+Python 3.12.14; Windows 11 x64; CPU; one torch thread per model.
+{
+  "numpy": "2.2.5",
+  "pandas": "2.3.2",
+  "scipy": "1.16.2",
+  "scikit-learn": "1.7.2",
+  "torch": "2.8.0+cpu",
+  "matplotlib": "3.10.3",
+  "requests": "2.32.3"
+}
+Full matrix: at most three independent CPU processes.
+Primary independent repeat: predictions, metrics and event logs byte-identical. Runtime excluded.
+Rendering-only PyMuPDF/Word are not scientific dependencies.
